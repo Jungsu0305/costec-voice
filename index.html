@@ -1,0 +1,178 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>코스텍피엠 음성검색</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 30px 20px;
+      font-family: Arial, sans-serif;
+      background: #f2f5f9;
+      color: #202b3c;
+      text-align: center;
+    }
+
+    .panel {
+      max-width: 500px;
+      margin: 40px auto;
+      padding: 30px 22px;
+      background: white;
+      border-radius: 18px;
+      box-shadow: 0 4px 15px #0001;
+    }
+
+    h2 { color: #17365d; }
+
+    #status {
+      margin: 25px 0;
+      color: #697789;
+      min-height: 24px;
+    }
+
+    #result {
+      width: 100%;
+      min-height: 65px;
+      padding: 15px;
+      border: 2px solid #d5dce6;
+      border-radius: 10px;
+      font-size: 18px;
+      text-align: center;
+    }
+
+    button {
+      width: 100%;
+      padding: 17px;
+      margin-top: 15px;
+      border: 0;
+      border-radius: 10px;
+      background: #17365d;
+      color: white;
+      font-size: 17px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #sendBtn { background: #2878d0; }
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="panel">
+    <h2>코스텍피엠 음성검색</h2>
+    <p>검색할 현장명이나 주소를 말씀해 주세요.</p>
+
+    <button id="startBtn">🎙 음성 검색 시작</button>
+
+    <div id="status">음성 검색을 시작해 주세요.</div>
+
+    <input id="result" type="text"
+           placeholder="인식된 검색어가 여기에 표시됩니다.">
+
+    <button id="sendBtn" disabled>
+      검색어 전달하기
+    </button>
+  </div>
+
+  <script>
+    const SpeechRecognition =
+      window.SpeechRecognition ||
+      window.webkitSpeechRecognition;
+
+    const startBtn = document.getElementById('startBtn');
+    const sendBtn = document.getElementById('sendBtn');
+    const status = document.getElementById('status');
+    const result = document.getElementById('result');
+
+    let recognition = null;
+
+    if (!SpeechRecognition) {
+      status.textContent =
+        '이 브라우저는 음성인식을 지원하지 않습니다.';
+      startBtn.disabled = true;
+    }
+
+    startBtn.addEventListener('click', function() {
+      if (!SpeechRecognition) return;
+
+      try {
+        recognition = new SpeechRecognition();
+
+        recognition.lang = 'ko-KR';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = function() {
+          status.textContent = '듣고 있습니다. 말씀해 주세요.';
+          startBtn.textContent = '듣는 중...';
+          startBtn.disabled = true;
+        };
+
+        recognition.onresult = function(event) {
+          const text = event.results[0][0].transcript;
+
+          result.value = text;
+          sendBtn.disabled = !text.trim();
+          status.textContent = '음성 인식 완료!';
+        };
+
+        recognition.onerror = function(event) {
+          const messages = {
+            'not-allowed': '마이크 권한이 거부되었습니다.',
+            'service-not-allowed': '음성인식 서비스가 차단되었습니다.',
+            'no-speech': '음성이 감지되지 않았습니다.',
+            'network': '네트워크 오류가 발생했습니다.'
+          };
+
+          status.textContent =
+            messages[event.error] ||
+            '음성인식 오류: ' + event.error;
+        };
+
+        recognition.onend = function() {
+          startBtn.disabled = false;
+          startBtn.textContent = '🎙 다시 검색하기';
+        };
+
+        recognition.start();
+
+      } catch (error) {
+        status.textContent = '실행 오류: ' + error.message;
+        startBtn.disabled = false;
+      }
+    });
+
+    sendBtn.addEventListener('click', function() {
+      const text = result.value.trim();
+
+      if (!text) return;
+
+      if (!window.opener || window.opener.closed) {
+        status.textContent =
+          '기존 현장관리 사이트에서 음성검색을 실행해 주세요.';
+        return;
+      }
+
+      window.opener.postMessage({
+        type: 'COSTEC_VOICE_RESULT',
+        text: text
+      }, '*');
+
+      status.textContent = '검색어를 전달했습니다.';
+      sendBtn.disabled = true;
+
+      setTimeout(function() {
+        window.close();
+      }, 700);
+    });
+  </script>
+</body>
+</html>
